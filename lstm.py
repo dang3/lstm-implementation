@@ -11,6 +11,8 @@ class LSTM:
         self.init_weights()
         self.init_biases()
 
+    def get_matrix(self, num_rows, num_cols):
+        return np.random.rand(num_rows, num_cols) * (self.upper_matrix_init_value - self.lower_matrix_init_value) + self.lower_matrix_init_value
 
     def init_weights(self):
         '''
@@ -44,18 +46,31 @@ class LSTM:
         self.B_oh = self.get_matrix(self.hidden_size, 1)
         self.B_ch = self.get_matrix(self.hidden_size, 1)
 
+    def forward_pass(self, x, h_prev, c_prev):
+        '''
+            Parameters:
+            x -- The input at the current time step t
+            h_prev -- The hidden state from the previous time step t-1
+            c_prev -- The cell (memory) state from the previous time step t-1
+        '''
 
+        # Forget gate
+        forget_x      = np.dot(self.W_fx, x) + self.B_fx
+        forget_h_prev = np.dot(self.W_fh, h_prev) + self.B_fh
+        forget_gate   = sigmoid(forget_x + forget_h_prev)
 
+        # Input gate
+        input_x      = np.dot(self.W_ix, x) + self.B_ix
+        input_h_prev = np.dot(self.W_ih, h_prev) + self.B_ih
+        input_gate   = sigmoid(input_x + input_h_prev)
 
+        # Candidate cell state
+        candidate_x = np.dot(self.Wcx, x) + self.B_cx
+        candidate_h_prev = np.dot(self.W_ch, h_prev) + self.B_ch
+        candidate = np.tanh(candidate_x + candidate_h_prev)
 
-    def get_matrix(self, x_dim, y_dim):
-        return np.random.rand(x_dim, y_dim) * (self.upper_matrix_init_value - self.lower_matrix_init_value) + self.lower_matrix_init_value
-
-
-
-lstm = LSTM(5,4)
-
-
+        # output gate
+        
 
 
 
