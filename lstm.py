@@ -46,7 +46,7 @@ class LSTM:
         self.B_oh = self.get_matrix(self.hidden_size, 1)
         self.B_ch = self.get_matrix(self.hidden_size, 1)
 
-    def forward_pass(self, x, h_prev, c_prev):
+    def forward_pass(self, x, h_prev, cell_prev):
         '''
             Parameters:
             x -- The input at the current time step t
@@ -65,17 +65,22 @@ class LSTM:
         input_gate   = sigmoid(input_x + input_h_prev)
 
         # Candidate cell state
-        candidate_x = np.dot(self.Wcx, x) + self.B_cx
+        candidate_x      = np.dot(self.W_cx, x) + self.B_cx
         candidate_h_prev = np.dot(self.W_ch, h_prev) + self.B_ch
-        candidate = np.tanh(candidate_x + candidate_h_prev)
+        candidate        = np.tanh(candidate_x + candidate_h_prev)
 
-        # output gate
-        
+        # Output gate
+        out_x    = np.dot(self.W_ox, x) + self.B_ox
+        out_h    = np.dot(self.W_oh, h_prev) + self.B_oh
+        out_gate = sigmoid(out_x + out_h)
 
+        # Current cell state
+        cell_current = np.multiply(cell_prev, forget_gate) + np.multiply(input_gate, candidate)
 
+        # Current hidden state
+        h_current = np.multiply(out_gate, np.tanh(cell_current))
 
-
-
+        return cell_current, h_current
 
 
 # https://github.com/keras-team/keras/issues/3088
