@@ -82,6 +82,8 @@ class LSTM:
 
         return cell_current, h_current
 
+    def backward_pass():
+        
 
 # https://github.com/keras-team/keras/issues/3088
 # https://towardsdatascience.com/examining-the-weight-and-bias-of-lstm-in-tensorflow-2-5576049a91fa
