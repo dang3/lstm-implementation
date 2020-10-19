@@ -2,12 +2,14 @@ import numpy as np
 from math_utils import sigmoid, dsigmoid, tanh, dtanh
 
 class LSTM:
-    def __init__(self, hidden_size, input_dim, lr):
+    def __init__(self, hidden_size, input_dim, batch_size, lr):
         self.hidden_size = hidden_size
         self.input_dim = input_dim
+        self.lr = lr
+        self.batch_size = batch_size
+
         self.upper_matrix_init_value = 0.1
         self.lower_matrix_init_value = -0.1
-        self.lr = lr
 
         self.init_weights()
         self.init_biases()
@@ -32,10 +34,10 @@ class LSTM:
         self.U_c = self.get_matrix(self.hidden_size, self.input_dim)
 
         # Weights on hidden state
-        self.W_f = self.get_matrix(self.hidden_size, self.input_dim)
-        self.W_i = self.get_matrix(self.hidden_size, self.input_dim)
-        self.W_o = self.get_matrix(self.hidden_size, self.input_dim)
-        self.W_c = self.get_matrix(self.hidden_size, self.input_dim)
+        self.W_f = self.get_matrix(self.hidden_size, self.hidden_size)
+        self.W_i = self.get_matrix(self.hidden_size, self.hidden_size)
+        self.W_o = self.get_matrix(self.hidden_size, self.hidden_size)
+        self.W_c = self.get_matrix(self.hidden_size, self.hidden_size)
 
     def init_weights_derivatives(self):
         # Derivatives of weights on input
@@ -52,16 +54,16 @@ class LSTM:
 
     def init_biases(self):
         # Biases on input
-        self.B_fx = self.get_matrix(self.hidden_size, 1)
-        self.B_ix = self.get_matrix(self.hidden_size, 1)
-        self.B_ox = self.get_matrix(self.hidden_size, 1)
-        self.B_cx = self.get_matrix(self.hidden_size, 1)
+        self.B_fx = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_ix = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_ox = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_cx = self.get_matrix(self.hidden_size, self.batch_size)
 
         # Biases on hidden state
-        self.B_fh = self.get_matrix(self.hidden_size, 1)
-        self.B_ih = self.get_matrix(self.hidden_size, 1)
-        self.B_oh = self.get_matrix(self.hidden_size, 1)
-        self.B_ch = self.get_matrix(self.hidden_size, 1)
+        self.B_fh = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_ih = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_oh = self.get_matrix(self.hidden_size, self.batch_size)
+        self.B_ch = self.get_matrix(self.hidden_size, self.batch_size)
 
     def init_biases_derivatives(self):
         # Derivatives of biases on input
@@ -110,6 +112,36 @@ class LSTM:
         # Reset bias derivatives to 0
         self.init_biases_derivatives()
 
+    def forget_gate(self, x, h_prev, cell_prev):
+        forget_x      = np.dot(self.U_f, x) + self.B_fx
+        forget_h_prev = np.dot(self.W_f, h_prev) + self.B_fh
+
+        return sigmoid(forget_x + forget_h_prev)
+    
+    def input_gate(self, x, h_prev, cell_prev):
+        input_x      = np.dot(self.U_i, x) + self.B_ix
+        input_h_prev = np.dot(self.W_i, h_prev) + self.B_ih
+
+        return sigmoid(input_x + input_h_prev)
+
+    def output_gate(self, x, h_prev, cell_prev):
+        out_x      = np.dot(self.U_o, x) + self.B_ox
+        out_h_prev = np.dot(self.W_o, h_prev) + self.B_oh
+
+        return sigmoid(out_x + out_h_prev)
+
+    def candidate(self, x, h_prev, cell_prev):
+        candidate_x      = np.dot(self.U_c, x) + self.B_cx
+        candidate_h_prev = np.dot(self.W_c, h_prev) + self.B_ch
+
+        return tanh(candidate_x + candidate_h_prev)
+
+    def update_cell_state(self, forget_gate, input_gate, candidate, cell_prev):
+        a = candidate * input_gate
+        b = input_gate * candidate
+
+        return a + b
+
     def forward_pass(self, x, h_prev, cell_prev):
         '''
             At the current time step, calculate the values for all the gates as well as
@@ -121,38 +153,34 @@ class LSTM:
             c_prev -- The cell (memory) state from the previous time step t-1
         '''
 
-        # Forget gate
-        forget_x      = np.dot(self.U_f, x) + self.B_fx
-        forget_h_prev = np.dot(self.W_f, h_prev) + self.B_fh
-        forget_gate   = sigmoid(forget_x + forget_h_prev)
+        # Gates
+        forget_gate = self.forget_gate(x, h_prev, cell_prev)    # [H x B]
+        input_gate = self.input_gate(x, h_prev, cell_prev)      # [H x B]
+        out_gate = self.output_gate(x, h_prev, cell_prev)       # [H x B]
 
-        # Input gate
-        input_x      = np.dot(self.U_i, x) + self.B_ix
-        input_h_prev = np.dot(self.W_i, h_prev) + self.B_ih
-        input_gate   = sigmoid(input_x + input_h_prev)
+        # States
+        candidate = self.candidate(x, h_prev, cell_prev)        # [H x B]
+        cell_current = self.update_cell_state(forget_gate, input_gate, candidate, cell_prev) # [H x B]
+        h_current = out_gate * tanh(cell_current)               # [H x B]
 
-        # Output gate
-        out_x    = np.dot(self.U_o, x) + self.B_ox
-        out_h    = np.dot(self.W_o, h_prev) + self.B_oh
-        out_gate = sigmoid(out_x + out_h)
+        return input_gate, forget_gate, out_gate, candidate, cell_current, h_current
 
-        # Candidate cell state
-        candidate_x      = np.dot(self.U_c, x) + self.B_cx
-        candidate_h_prev = np.dot(self.W_c, h_prev) + self.B_ch
-        candidate        = tanh(candidate_x + candidate_h_prev)
-
-        # Current cell state
-        cell_current = np.multiply(cell_prev, forget_gate) + np.multiply(input_gate, candidate)
-
-        # Current hidden state
-        h_current = np.multiply(out_gate, tanh(cell_current))
-
-        return forget_gate, input_gate, out_gate, candidate, cell_current, h_current
-
-
+    def backward_pass(forward_pass_outputs):
+        input_gate, forget_gate, out_gate, candidate, cell_current, h_current = forward_pass_outputs
         
 
 
+H = 3
+D = 2
+B = 1
+
+lstm = LSTM(hidden_size=H, input_dim=D, batch_size=B, lr = 1)
+
+x = np.random.rand(D, B)
+h_prev = np.zeros((H, B))
+cell_prev = np.zeros((H, B))
+
+lstm.forward_pass(x, h_prev, cell_prev)
 
 
 
@@ -161,7 +189,8 @@ class LSTM:
 
 
 
-        
+
+
 
 # https://github.com/keras-team/keras/issues/3088
 # https://towardsdatascience.com/examining-the-weight-and-bias-of-lstm-in-tensorflow-2-5576049a91fa
