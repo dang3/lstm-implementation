@@ -5,17 +5,21 @@ def sigmoid(x):
     return 1.0/(1 + np.exp(-x))
 
 def dsigmoid(x):
-    return x * (1 - x)
+    f = sigmoid(x)
+    return f * (1 - f)
 
 def tanh(x):
     return np.tanh(x)
 
-def dtanh(x)
-    return 1 - (x*x)
-
-def mean_absolute_error(actual_output, label):
-    return abs(actual_output - label)
+def dtanh(x):
+    f = tanh(x)
+    return 1 - (f*f)
 
 def binary_cross_entropy(actual_output, label):
     return -(label * log(actual_output) + (1 - label) * log(1 - actual_output))
 
+def l2_loss(actual_output, label):
+    return (label - actual_output)^2
+
+def d_l2_loss(actual_output, label):
+    return 2 * (label - actual_output)
